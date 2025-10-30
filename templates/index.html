@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>競馬予測AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <header>
+        <h1>競馬予測AI</h1>
+    </header>
+
+    <main>
+        <section class="prediction-form-section">
+            <h2>レース予測</h2>
+            <form id="predict-form">
+                <div class="form-group">
+                    <label for="netkeiba-url">netkeiba URL:</label>
+                    <input type="url" id="netkeiba-url" name="netkeiba_url"
+                        placeholder="https://race.netkeiba.com/race/shutuba.html?race_id=..." required>
+                </div>
+                <div class="form-group">
+                    <label for="race-date">レース開催日:</label>
+                    <input type="date" id="race-date" name="race_date" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" id="predict-button">予測実行</button>
+                    <div id="loading" class="spinner" style="display: none;"></div>
+                </div>
+            </form>
+            <div id="error-message" class="error-text" style="display: none;"></div>
+        </section>
+
+        <section id="result-section" style="display: none;">
+            <div id="race-info-display">
+                <h3 id="race-name"></h3>
+                <p id="race-details"></p>
+            </div>
+
+            <div class="content-wrapper">
+                <div class="table-container">
+                    <h4>予測スコア</h4>
+                    <table id="prediction-table">
+                        <thead>
+                            <tr>
+                                <th>馬番</th>
+                                <th>枠</th>
+                                <th>馬名</th>
+                                <th>騎手</th>
+                                <th>単勝</th>
+                                <th>予測スコア</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="details-container" style="display: none;">
+                    <h4 id="details-horse-name"></h4>
+
+                    <div id="factors-display">
+                        <h5>予測寄与度 (SHAP重要度)</h5>
+                        <ul id="factors-list">
+                        </ul>
+                    </div>
+
+                    <div id="history-display">
+                        <h5>近走成績</h5>
+                        <table id="history-table">
+                            <thead>
+                                <tr>
+                                    <th>日付</th>
+                                    <th>レース名</th>
+                                    <th>場所</th>
+                                    <th>着順</th>
+                                    <th>上り3F</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>

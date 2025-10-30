@@ -1,0 +1,24 @@
+# --- コアライブラリ（データ処理・数値計算） ---
+pandas             # データ操作と前処理（全てのファイルで使用）
+numpy              # 数値計算（全てのファイルで使用）
+polars             # CSVの読み込みや高速なデータ処理（keiba_analysis.py など）
+scikit-learn       # ndcg_scoreなどのメトリクス（train_GBM.py）
+
+# --- ディープラーニングモデル（DCN-LSTM） ---
+torch              # PyTorch本体（DeepCTR、強化学習の基盤）
+deepctr-torch      # DCN-LSTMモデルの構築に使用（predict_logic.py など）
+
+# --- 勾配ブースティング（ランキングモデル） ---
+lightgbm           # メインのランキング学習モデル（train_GBM.py）
+
+# --- 強化学習 (RL) ---
+# train_ppo.py の実行に必須
+# Stable-Baselines3の使用を前提としています
+stable-baselines3  
+gymnasium          # 強化学習環境の構築に必要
+
+# --- その他のユーティリティ ---
+# Webアプリケーションの実行に必要（app.py）
+flask              
+tqdm               # 進捗バーの表示（train_ppo.py など）
+unicodedata        # 文字列の正規化に使用
