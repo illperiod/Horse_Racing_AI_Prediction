@@ -4,7 +4,7 @@
 　大きく分けて、各馬のスコア付けと、そこから導き出される馬券購入戦略の二つに対して機械学習が行われます。
 前者はDCNを組み合わせたLSTMモデルで行われ、後者はLightGBMを用いたモデルで行われます。
 
-　生データは各自で用意していただく必要があります。JRA-VAN データラボのTARGET frontier JVを想定しています。
+　生データは配布しておりません。生データの用意はJRA-VAN データラボのTARGET frontier JVを想定しています。
 
 # 使い方
 
@@ -12,7 +12,9 @@
 1. `docker`でコンテナを作成
 2. `TARGET frontier JV`から血統データとレース結果の生データを生成
 3. `features_engineered.py`で特徴量エンジニアリング
-4. `keiba_analysis.py`でモデルを作成
+4. `keiba_analysis.py`でモデル情報を作成
+5. `preprocess_sequences.py`で時系列データを定義
+6. 再度`keiba_analysis.py`を実行しモデルを作成
 
 ## 評価する
 1. `/test/create_rl_table.py`を実行（スコアの算出には時間がかかる場合があります）
