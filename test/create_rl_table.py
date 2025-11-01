@@ -768,7 +768,7 @@ class Backtester:
     # ▼▼▼ 【★★★ run_backtest を大幅に書き換え ★★★】 ▼▼▼
     def run_backtest(
         self,
-        output_csv_path="data/processed/rl_betting_data.csv",  # ★ 出力ファイル名変更 (RL用)
+        output_csv_path="./data/processed/rl_betting_data.csv",  # ★ 出力ファイル名変更 (RL用)
         start_date_str="2024-01-01",  # バックテスト対象の開始日
         debug_mode=False,  # ★ デフォルトを False に変更 ★
         debug_race_id="2025.9.28_中山_5",  # デバッグ時に使用
@@ -1180,13 +1180,13 @@ if __name__ == "__main__":
     DEBUG_RACE_ID = "2025.9.28_中山_5"
     START_DATE_STR = "2024-01-01"
 
-    HISTORICAL_DATA_PATH = "2010_2025_data_v2.csv"
-    PEDIGREE_DATA_PATH = "2005_2025_Pedigree.csv"
+    HISTORICAL_DATA_PATH = "./2010_2025_data.csv"
+    PEDIGREE_DATA_PATH = "./2005_2025_Pedigree.csv"
 
     PREPROCESSOR_DIR = "lstm_preprocessor_score"
     MODEL_DIR = "lstm_models_score"
 
-    OUTPUT_CSV_PATH = "data/processed/backtest_predictions_raw_features_pit.csv"  # ★ Point-in-Time を示すファイル名
+    OUTPUT_CSV_PATH = "./data/processed/backtest_predictions_raw_features_pit.csv"  # ★ Point-in-Time を示すファイル名
 
     logging.info(f"--- バックテスト ({os.path.basename(__file__)}) 開始 ---")
     if DEBUG_MODE:

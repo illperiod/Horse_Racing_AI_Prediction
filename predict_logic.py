@@ -1668,7 +1668,7 @@ class Predictor:
 # --- main ブロック (テスト用) ---
 if __name__ == "__main__":
     # --- パス設定 ---
-    HISTORICAL_DATA_PATH = "2010_2025_data_v2.csv"
+    HISTORICAL_DATA_PATH = "2010_2025_data.csv"
     PEDIGREE_DATA_PATH = "2005_2025_Pedigree.csv"
     PREPROCESSOR_DIR = "lstm_preprocessor_score"
     MODEL_DIR = "lstm_models_score"

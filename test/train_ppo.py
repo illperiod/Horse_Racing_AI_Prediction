@@ -491,11 +491,11 @@ def evaluate_model_on_test_env(model, test_env_instance):  # 省略
 
 if __name__ == "__main__":
     # ... (設定、メイン処理は変更なし) ...
-    RL_TABLE_PATH = "data/processed/backtest_predictions_raw_features_pit.csv"
-    RAW_RACE_PATH = "2010_2025_data_v2.csv"
+    RL_TABLE_PATH = "./data/processed/backtest_predictions_raw_features_pit.csv"
+    RAW_RACE_PATH = "2010_2025_data.csv"
     SPLIT_DATE = "2024-12-31"
     SCALER_PATH = "filtered_dynamic_scalers.joblib"
-    MODEL_PATH = "ppo_keiba_betting_model_v_race_filtered_dynamic.zip"
+    MODEL_PATH = "./ppo_keiba_betting_model_v_race_filtered_dynamic.zip"
     LOG_DIR = "./ppo_keiba_tensorboard_monitor_v_race_filtered_dynamic/"
     os.makedirs(LOG_DIR, exist_ok=True)
     df_train_filtered, df_test, scaler_path, df_train_full_featured = (

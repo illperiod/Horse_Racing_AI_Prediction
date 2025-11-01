@@ -33,7 +33,7 @@ werkzeug_logger = logging.getLogger("werkzeug")
 werkzeug_logger.setLevel(logging.INFO)
 
 # --- グローバル設定 ---
-HISTORICAL_DATA_PATH = "2010_2025_data_v2.csv"
+HISTORICAL_DATA_PATH = "2010_2025_data.csv"
 PEDIGREE_DATA_PATH = "2005_2025_Pedigree.csv"
 PREPROCESSOR_BASE_DIR = "lstm_preprocessor_score"
 MODEL_BASE_DIR = "lstm_models_score"

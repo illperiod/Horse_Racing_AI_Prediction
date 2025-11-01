@@ -900,7 +900,7 @@ def feature_engineering(df_polars):
 
 
 if __name__ == "__main__":
-    RACE_DATA_PATH = "2010_2025_data_v2.csv"
+    RACE_DATA_PATH = "2010_2025_data.csv"
     PEDIGREE_DATA_PATH = "2005_2025_Pedigree.csv"
     OUTPUT_PATH = "features_engineered.csv"
 
