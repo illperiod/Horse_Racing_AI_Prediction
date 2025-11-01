@@ -32,4 +32,4 @@
 
 ## 補足
 以下に各コードの役割について示します。
-https://github.com/illperiod/Horse_Racing_AI_Prediction/blob/main/specification.md
+https://github.com/illperiod/Horse_Racing_AI_Prediction/blob/main/docs/specification.md
