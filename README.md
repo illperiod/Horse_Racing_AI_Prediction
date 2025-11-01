@@ -2,7 +2,7 @@
 　機械学習で競馬の予想を行うプログラムです。flaskを用いたwebアプリケーション上で動作します。
 
 　大きく分けて、各馬のスコア付けと、そこから導き出される馬券購入戦略の二つに対して機械学習が行われます。
-前者はDCNを組み合わせたLSTMモデルで行われ、後者はLightGBMを用いたモデルで行われます。
+前者はCNを組み合わせたLSTMモデルで行われ、後者はLightGBMを用いたモデルで行われます。
 
 　生データは配布しておりません。生データの用意はJRA-VAN データラボのTARGET frontier JVを想定しています。
 
@@ -28,3 +28,8 @@
 4. 予測を実行
 5. しばし待つ
 6. 予測結果が出る
+
+
+## 補足
+以下に各コードの役割について示します。
+https://github.com/illperiod/Horse_Racing_AI_Prediction/blob/main/specification.md
