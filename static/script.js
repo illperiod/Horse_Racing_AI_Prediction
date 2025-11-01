@@ -64,13 +64,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ローディング表示/非表示
+    // ローディング表示/非表示 (変更なし)
     function showLoading(isLoading) {
         loadingSpinner.style.display = isLoading ? 'block' : 'none';
         predictButton.disabled = isLoading;
     }
 
-    // エラー表示
+    // エラー表示 (変更なし)
     function displayError(message) {
         if (message) {
             errorMessageDiv.textContent = message;
@@ -80,19 +80,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // レース情報表示
+    // レース情報表示 (変更なし)
     function displayRaceInfo(raceInfo) {
         if (!raceInfo) return;
         raceNameEl.textContent = `${raceInfo.location} ${raceInfo.number}R ${raceInfo.name}`;
         raceDetailsEl.textContent = `${raceInfo.date} | ${raceInfo.track}${raceInfo.distance}m | ${raceInfo.condition}`;
     }
 
+    // ▼▼▼【ここから関数全体を修正】▼▼▼
     // 予測テーブル表示
     function displayPredictionTable(predictions) {
         predictionTableBody.innerHTML = ''; // クリア
 
         if (!predictions || predictions.length === 0) {
-            predictionTableBody.innerHTML = '<tr><td colspan="6">予測データがありません。</td></tr>';
+            // colspan を 8 に変更
+            predictionTableBody.innerHTML = '<tr><td colspan="8">予測データがありません。</td></tr>';
             return;
         }
 
@@ -100,19 +102,33 @@ document.addEventListener('DOMContentLoaded', () => {
             const tr = document.createElement('tr');
 
             // スコアを小数点以下4桁にフォーマット
-            const score = parseFloat(horse.予測スコア).toFixed(4);
             const odds = parseFloat(horse.単勝オッズ).toFixed(1);
+            const dlScore = parseFloat(horse.予測スコア).toFixed(4);
+            const lgbmScore = parseFloat(horse.LGBM_rank_score).toFixed(4); // LGBMスコア
 
+            // 推奨賭け金のロジック
+            const betAmount = horse.推奨賭け金;
+            let betCellHtml = '<td>-</td>'; // デフォルトはハイフン
+
+            if (betAmount > 0) {
+                // 推奨賭け金が 0 より大きい場合、セルを強調表示
+                betCellHtml = `<td class="recommended-bet">${betAmount} 円</td>`;
+                tr.classList.add('recommended-row'); // 行全体も強調
+            }
+
+            // HTML を 8列 に変更
             tr.innerHTML = `
                 <td>${horse.馬番}</td>
                 <td>${horse.枠番}</td>
                 <td>${horse.馬名}</td>
                 <td>${horse.騎手}</td>
                 <td>${odds}</td>
-                <td>${score}</td>
+                <td>${dlScore}</td>
+                <td>${lgbmScore}</td>
+                ${betCellHtml}
             `;
 
-            // クリックイベントで詳細表示
+            // クリックイベントで詳細表示 (変更なし)
             tr.addEventListener('click', () => {
                 // 他の行の選択解除
                 document.querySelectorAll('#prediction-table tbody tr').forEach(row => {
@@ -127,13 +143,14 @@ document.addEventListener('DOMContentLoaded', () => {
             predictionTableBody.appendChild(tr);
         });
 
-        // 最初の行を自動的にクリック (デフォルト表示)
+        // 最初の行を自動的にクリック (変更なし)
         if (predictionTableBody.firstChild) {
             predictionTableBody.firstChild.click();
         }
     }
+    // ▲▲▲【ここまで関数全体を修正】▲▲▲
 
-    // 詳細エリア表示
+    // 詳細エリア表示 (変更なし)
     function displayDetails(horse) {
         detailsContainer.style.display = 'block';
         detailsHorseNameEl.textContent = `(${horse.馬番}) ${horse.馬名}`;
@@ -144,7 +161,10 @@ document.addEventListener('DOMContentLoaded', () => {
             horse.factors.forEach(factor => {
                 const [name, importance] = factor;
                 const li = document.createElement('li');
-                li.textContent = `${name}: ${parseFloat(importance).toFixed(5)}`;
+                // importance が数値であることを確認してから toFixed を適用
+                const importanceValue = parseFloat(importance);
+                const importanceText = isNaN(importanceValue) ? importance : importanceValue.toFixed(5);
+                li.textContent = `${name}: ${importanceText}`;
                 factorsListEl.appendChild(li);
             });
         } else {
@@ -156,7 +176,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (horse.history && horse.history.length > 0) {
             horse.history.forEach(race => {
                 const tr = document.createElement('tr');
-                const raceDate = race.日付 ? new Date(race.日付).toLocaleDateString('ja-JP') : 'N/A';
+                // 日付フォーマットの堅牢性を向上
+                let raceDate = 'N/A';
+                if (race.日付) {
+                    try {
+                        raceDate = new Date(race.日付).toLocaleDateString('ja-JP');
+                    } catch (e) {
+                        raceDate = race.日付; // パース失敗時はそのまま表示
+                    }
+                }
+
                 tr.innerHTML = `
                     <td>${raceDate}</td>
                     <td>${race.レース名 || 'N/A'}</td>

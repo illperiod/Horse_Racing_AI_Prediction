@@ -336,6 +336,40 @@ except ImportError as e:
     logging.error(f"scraper.py のインポートに失敗: {e}")
 # ▲▲▲ [scraper.py からインポート想定] ここまで ▲▲▲
 
+# (カテゴリカル変数（文字列）を含まず、率（数値）のみが含まれているリスト)
+FEATURE_COLS_LGBM = [
+    "予測スコア",
+    "単勝オッズ",
+    "枠番",
+    "斤量",
+    "距離",
+    "年齢",
+    "キャリア",
+    "レース間隔",
+    "馬体重増減",
+    "斤量負担率",
+    "騎手乗り替わりフラグ",
+    "キャリア平均_PCI",
+    "近5走平均_PCI",
+    "キャリア平均_上り3F",
+    "近5走平均_上り3F",
+    "キャリア平均_4角順位率",
+    "近5走平均_4角順位率",
+    "キャリア平均_平均速度",
+    "近5走平均_平均速度",
+    "キャリア平均_上り3F_vs_基準",
+    "キャリア平均_平均速度_vs_基準",
+    "近5走平均_上り3F_vs_基準",
+    "近5走平均_平均速度_vs_基準",
+    "追走指数",
+    "レースメンバー平均PCI過去全体",
+    "騎手_複勝率",
+    "調教師_複勝率",
+    "種牡馬_複勝率",
+    "騎手_競馬場別複勝率",
+    "馬_コース距離別複勝率",
+]
+
 
 class Predictor:
     def __init__(
@@ -351,6 +385,7 @@ class Predictor:
 
         self.preprocessor_dir = preprocessor_base_dir
         self.model_dir = model_base_dir
+        self.lgbm_model_dir = "./lgbm_models"
 
         # --- 1. 設定 (N_STEPS) をロード ---
         self.n_steps = 5
@@ -498,7 +533,7 @@ class Predictor:
             logging.error(f"前処理オブジェクトのロードに失敗: {e}")
             raise e
 
-        # --- 4. モデルをロード ---
+        # --- 4A. モデルをロード ---
         try:
             logging.info(f"{model_base_dir} からモデルをロード中...")
             model_path = os.path.join(model_base_dir, "lstm_hybrid_model.pth")
@@ -527,6 +562,28 @@ class Predictor:
         except Exception as e:
             logging.error(f"モデルのロードに失敗: {e}")
             raise e
+
+        # ▼▼▼【ここから追加】▼▼▼
+        # --- 4B. モデルをロード (LightGBM) ---
+        try:
+            logging.info(f"{self.lgbm_model_dir} からLGBMモデルをロード中...")
+            ranker_path = os.path.join(self.lgbm_model_dir, "lgbm_ranker.pkl")
+            classifier_path = os.path.join(self.lgbm_model_dir, "lgbm_classifier.pkl")
+
+            self.lgbm_ranker = joblib.load(ranker_path)
+            self.lgbm_classifier = joblib.load(classifier_path)
+
+            logging.info("LGBM二重モデル（ランカー、分類器）のロード完了")
+
+            # LGBMが使う特徴量リストをグローバルから取得
+            self.feature_cols_lgbm = FEATURE_COLS_LGBM
+            # (カテゴリカル変数は使わない前提)
+            self.categorical_cols_lgbm = []
+
+        except Exception as e:
+            logging.error(f"LGBMモデルのロードに失敗: {e}")
+            raise e
+        # ▲▲▲【ここまで追加】▲▲▲
 
         # --- 5. (オプション) SHAP重要度をロード ---
         try:
@@ -976,6 +1033,89 @@ class Predictor:
                 history_dict[horse_name] = []
         return factors_dict, history_dict
 
+    def _calculate_kelly_bet(self, df_live_results_pd):
+        """
+        予測結果のPandas DFを受け取り、ケリー基準で賭け金を計算して返す。
+        (103.99% を達成した train_lightgbm_combined.py のロジックを移植)
+        """
+
+        # --- ケリー戦略のパラメータ (103.99% 達成時のもの) ---
+        KELLY_FRACTION = 0.05
+        BASE_UNIT = 100000.0
+        MAX_BET_PER_RACE = 500.0  # 103.99% 達成時の上限値
+
+        # 戦略フィルター
+        MIN_ODDS = 1.0  # 最小オッズ
+        MAX_ODDS = 10.0  # 最大オッズ (B < 10.0)
+        MIN_EXPECTED_VALUE = 0.0  # 期待値 (E > 0)
+
+        rank_col = "predict_rank_score"
+        proba_col = "predict_win_proba"
+        odds_col = "単勝オッズ"
+
+        bet_amounts = {}  # 馬名: 賭け金 の辞書
+
+        # --- ロジック開始 ---
+
+        # 1. ランキング上位3位の馬を抽出
+        top_n_horses = df_live_results_pd.nlargest(3, rank_col)
+
+        # 2. 上位3頭を1頭ずつチェック
+        for target_horse_idx, target_horse in top_n_horses.iterrows():
+            horse_name = target_horse["馬名"]
+            P = target_horse[proba_col]  # 予測勝率
+            B = target_horse[odds_col]  # 単勝オッズ
+
+            if pd.isna(P) or pd.isna(B) or B < MIN_ODDS:
+                bet_amounts[horse_name] = 0
+                continue
+
+            # 3. 戦略フィルター (オッズ)
+            if B >= MAX_ODDS:
+                bet_amounts[horse_name] = 0
+                continue
+
+            # 4. 期待値 E の計算
+            E = (P * B) - 1
+
+            # 5. 戦略フィルター (期待値)
+            if E <= MIN_EXPECTED_VALUE:
+                bet_amounts[horse_name] = 0
+                continue
+
+            # 6. ケリー分数 F の計算
+            B_minus_1 = B - 1
+            if B_minus_1 <= 0.001:
+                bet_amounts[horse_name] = 0
+                continue
+
+            F = (P * B_minus_1 - (1 - P)) / B_minus_1
+
+            if F <= 0:
+                bet_amounts[horse_name] = 0
+                continue
+
+            # 7. 賭け金（Bet Size）の決定
+            calculated_bet = F * KELLY_FRACTION * BASE_UNIT
+            purchase_amount = np.floor(calculated_bet / 100.0) * 100
+            purchase_amount = min(purchase_amount, MAX_BET_PER_RACE)
+
+            if purchase_amount < 100:
+                bet_amounts[horse_name] = 0
+                continue
+
+            bet_amounts[horse_name] = int(purchase_amount)
+
+        # ランク外の馬の賭け金を0に設定
+        all_horse_names = df_live_results_pd["馬名"].unique()
+        for horse in all_horse_names:
+            if horse not in bet_amounts:
+                bet_amounts[horse] = 0
+
+        return bet_amounts
+
+    # ▲▲▲【ここまで追加】▲▲▲
+
     def run_prediction(self, url, shutuba_csv_path, form_race_date, race_info):
         """
         予測実行のメインロジック (★修正★)
@@ -1354,103 +1494,134 @@ class Predictor:
             logging.info(f"  model.training: {self.model.training}")
             logging.info(f"-----------------------------")
 
-            # --- 9. 予測実行 ---
+            # --- 9. 予測実行 (Deep Learning) ---
             logging.info(
-                f"モデル予測を実行中 (Batch Size: {X_static_tensor.shape[0]})..."
+                f"DLモデル予測を実行中 (Batch Size: {X_static_tensor.shape[0]})..."
             )
             with torch.no_grad():
                 y_pred_tensor = self.model(X_seq_tensor, X_static_tensor)
-            scores = y_pred_tensor.cpu().numpy().squeeze()
-            if scores.ndim == 0:
-                scores = [scores.item()]
+            dl_scores = y_pred_tensor.cpu().numpy().squeeze()
+            if dl_scores.ndim == 0:
+                dl_scores = [dl_scores.item()]
             else:
-                scores = scores.tolist()
-            logging.info(f"予測完了。スコア: {scores}")
+                dl_scores = dl_scores.tolist()
+            logging.info(f"DLモデル予測完了。スコア: {dl_scores}")
 
-            # --- 10. 結果の整形 ---
-            logging.info("予測結果を整形中...")
-            df_featured_live_pl = df_featured_combined_pl.filter(
-                (pl.col("日付") == live_race_date)
-                & (pl.col("馬名").is_in(live_horse_names))
-            )
-            df_featured_live_pd = df_featured_live_pl.to_pandas()
-
-            # (デバッグプリント: スケーリング前/後の重要特徴量)
-            logging.info(
-                "\n========== [デバッグ] スケーリング「前」の重要特徴量 (1頭目) =========="
-            )
-            if len(df_featured_live_pd) > 0:
-                sample_horse = df_featured_live_pd.iloc[0]["馬名"]
-                logging.info(f"サンプル馬: {sample_horse}")
-
-                # ★★★ 追加: この馬の過去データ件数を確認 ★★★
-                past_count = df_past_pl.filter(pl.col("馬名") == sample_horse).shape[0]
-                logging.info(f"  過去データ件数: {past_count}件")
-
-                important_features = [
-                    "キャリア平均_PCI",
-                    "キャリア平均_上り3F_vs_基準",
-                    "キャリア平均_平均速度_vs_基準",
-                    "近5走平均_上り3F_vs_基準",
-                    "近5走平均_平均速度_vs_基準",
-                    "騎手_複勝率",
-                    "調教師_複勝率",
-                    "単勝オッズ",
-                ]
-                for feat in important_features:
-                    if feat in df_featured_live_pd.columns:
-                        val = df_featured_live_pd.iloc[0][feat]
-                        if pd.isna(val):
-                            logging.warning(f"  {feat}: nan ⚠️")
-                        else:
-                            logging.info(f"  {feat}: {val}")
-                    else:
-                        logging.info(f"  {feat}: カラム欠損 ⚠️")
-            logging.info("=" * 60 + "\n")
-
+            # --- 10. (Pandas) DFにDLスコアをマージ ---
             df_processed_live_pd = df_processed_live.to_pandas()
-            df_processed_live_pd["予測スコア"] = scores
+            if len(df_processed_live_pd) == len(dl_scores):
+                df_processed_live_pd["予測スコア"] = (
+                    dl_scores  # これが LGBM の特徴量になる
+                )
+            else:
+                logging.error("DLスコアと処理済みDFの行数が一致しません！")
+                return {"error": "DLスコアとDFの行数が不一致です。"}
 
-            logging.info(
-                "\n========== [デバッグ] スケーリング「後」の重要特徴量 (1頭目) =========="
-            )
-            if len(df_processed_live_pd) > 0:
-                logging.info(f"サンプル馬: {df_processed_live_pd.iloc[0]['馬名']}")
-                important_features = [
-                    "キャリア平均_PCI",
-                    "キャリア平均_上り3F_vs_基準",
-                    "キャリア平均_平均速度_vs_基準",
-                    "近5走平均_上り3F_vs_基準",
-                    "近5走平均_平均速度_vs_基準",
-                    "騎手_複勝率",
-                    "調教師_複勝率",
-                    "単勝オッズ",
+            # ▼▼▼【ここから修正】▼▼▼
+            # --- 11. 予測実行 (LightGBM 二重モデル) ---
+            logging.info("LGBM二重モデル予測を実行中...")
+            try:
+                # LGBM が必要とする特徴量セットを抽出
+                # (self.feature_cols_lgbm に "予測スコア" が含まれている必要がある)
+
+                # (デバッグ用) スクレピングしたてのDF (df_live_pl) からオッズをマージし直す
+                # → feature_engineering が '単勝オッズ' を 0 で埋めている可能性があるため
+                df_live_pd_simple = df_live_pl.to_pandas()[["馬名", "単勝オッズ"]]
+                df_processed_live_pd = pd.merge(
+                    df_processed_live_pd.drop(columns=["単勝オッズ"], errors="ignore"),
+                    df_live_pd_simple,
+                    on="馬名",
+                    how="left",
+                )
+
+                missing_lgbm_cols = [
+                    col
+                    for col in self.feature_cols_lgbm
+                    if col not in df_processed_live_pd.columns
                 ]
-                for feat in important_features:
-                    if feat in df_processed_live_pd.columns:
-                        logging.info(f"  {feat}: {df_processed_live_pd.iloc[0][feat]}")
-                    else:
-                        logging.info(f"  {feat}: カラム欠損 ⚠️")
-            logging.info("=" * 60 + "\n")
+                if missing_lgbm_cols:
+                    logging.error(
+                        f"LGBMの予測に必要な特徴量が不足しています: {missing_lgbm_cols}"
+                    )
+                    for col in missing_lgbm_cols:
+                        df_processed_live_pd[col] = 0  # 不足分は 0 で埋める
 
+                # Null/Inf が残っているとLGBMがエラーを起こすため、最終チェック
+                X_test_lgbm = (
+                    df_processed_live_pd[self.feature_cols_lgbm]
+                    .fillna(0)
+                    .replace([np.inf, -np.inf], 0)
+                )
+
+                # 予測実行
+                y_pred_rank = self.lgbm_ranker.predict(X_test_lgbm)
+                y_pred_proba = self.lgbm_classifier.predict_proba(X_test_lgbm)[:, 1]
+
+                # DFにLGBMの予測結果を追加
+                df_processed_live_pd["predict_rank_score"] = y_pred_rank
+                df_processed_live_pd["predict_win_proba"] = y_pred_proba
+
+                logging.info("LGBM二重モデル予測完了。")
+
+            except Exception as e:
+                logging.error(f"LGBM予測ステップでエラー: {e}")
+                logging.error(traceback.format_exc())
+                return {"error": f"LGBM予測ステップでエラー: {e}"}
+
+            # --- 12. ケリー基準による賭け金計算 ---
+            logging.info("ケリー基準による賭け金計算を実行中...")
+
+            # (X_test_lgbm に '単勝オッズ' が含まれているので、df_processed_live_pd にも存在するはず)
+            if "単勝オッズ" not in df_processed_live_pd.columns:
+                logging.error("賭け金計算に必要な '単勝オッズ' がDFにありません！")
+                # (上記のマージ処理でカバーされているはずだが念のため)
+                return {"error": "賭け金計算に必要な '単勝オッズ' がDFにありません。"}
+
+            bet_amounts_dict = self._calculate_kelly_bet(df_processed_live_pd)
+            df_processed_live_pd["推奨賭け金"] = (
+                df_processed_live_pd["馬名"].map(bet_amounts_dict).fillna(0)
+            )
+
+            logging.info(f"賭け金計算完了: {bet_amounts_dict}")
+
+            # --- 13. 結果の整形 ---
+            logging.info("予測結果を整形中...")
             df_live_pd = df_live_pl.to_pandas()
+
+            cols_to_merge = ["馬名", "馬番", "枠番", "騎手", "単勝オッズ"]
+            lgbm_results_cols = [
+                "馬名",
+                "予測スコア",
+                "predict_rank_score",
+                "predict_win_proba",
+                "推奨賭け金",
+            ]
+
             df_results = pd.merge(
-                df_live_pd[["馬名", "馬番", "枠番", "騎手", "単勝オッズ"]],
-                df_processed_live_pd[["馬名", "予測スコア"]],
+                df_live_pd[cols_to_merge],
+                df_processed_live_pd[lgbm_results_cols],
                 on="馬名",
                 how="left",
             )
+
+            # ★ ソート基準を LGBMランカー(predict_rank_score) に変更
             df_results = df_results.sort_values(
-                "予測スコア", ascending=False
+                "predict_rank_score", ascending=False
             ).reset_index(drop=True)
 
-            # --- 11. 詳細情報 (ファクター, 過去戦績) の取得 ---
+            # --- 14. 詳細情報 (ファクター, 過去戦績) の取得 ---
             df_past_featured_pd = df_featured_combined_pl.filter(
                 pl.col("日付") < live_race_date
             ).to_pandas()
+            df_featured_live_pd = df_featured_combined_pl.filter(
+                (pl.col("日付") == live_race_date)
+                & (pl.col("馬名").is_in(live_horse_names))
+            ).to_pandas()
+
             factors_dict, history_dict = self._get_factors_and_history(
                 df_featured_live_pd, df_past_featured_pd
             )
+
             predictions_list = []
             for _, row in df_results.iterrows():
                 horse_name = row["馬名"]
@@ -1461,11 +1632,17 @@ class Predictor:
                         "馬名": horse_name,
                         "騎手": row["騎手"],
                         "単勝オッズ": row["単勝オッズ"],
-                        "予測スコア": row["予測スコア"],
+                        # ▼▼▼【ここを修正】▼▼▼
+                        "予測スコア": row["予測スコア"],  # DLモデルのスコア
+                        "LGBM_rank_score": row[
+                            "predict_rank_score"
+                        ],  # ★ LGBMランカーのスコア
+                        "推奨賭け金": row["推奨賭け金"],  # ★ ケリー基準の賭け金
                         "factors": factors_dict.get(horse_name, []),
                         "history": history_dict.get(horse_name, []),
                     }
                 )
+            # ▲▲▲【ここまで修正】▲▲▲
 
             final_race_info = {
                 "name": race_info.get("race_name", "不明"),

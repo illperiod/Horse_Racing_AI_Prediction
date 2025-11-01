@@ -421,6 +421,22 @@ if __name__ == "__main__":
         )
         print("  -> 分類器学習完了。")
 
+        # ▼▼▼【ここから追加】▼▼▼
+        import joblib
+
+        MODEL_OUTPUT_DIR = "./lgbm_models"  # 保存先ディレクトリ
+        os.makedirs(MODEL_OUTPUT_DIR, exist_ok=True)
+
+        # モデルを保存
+        ranker_path = os.path.join(MODEL_OUTPUT_DIR, "lgbm_ranker.pkl")
+        classifier_path = os.path.join(MODEL_OUTPUT_DIR, "lgbm_classifier.pkl")
+
+        joblib.dump(model_ranker, ranker_path)
+        joblib.dump(model_classifier, classifier_path)
+
+        print(f"LGBMモデルを {MODEL_OUTPUT_DIR} に保存しました。")
+        # ▲▲▲【ここまで追加】▲▲▲
+
         # --- 4. モデル評価 (Feature Importance はランカーのものを表示) ---
         print("\n--- モデル評価 (テストデータ) ---")
         if hasattr(model_ranker, "feature_importances_"):
