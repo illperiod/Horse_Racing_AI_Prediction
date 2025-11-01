@@ -37,7 +37,7 @@
     
     ![血統データ](https://github.com/illperiod/Horse_Racing_AI_Prediction/blob/main/screenshot/TARGET_pedigree.png)
 
-    出力タブから★画面イメージ(CSV形式)を選択し、指定階層に`2005_2025_pedigree.csv`という名前で保存する
+    出力タブから★画面イメージ(CSV形式)を選択し、指定階層に`2005_2025_Pedigree.csv`という名前で保存する
   
 ## モデルの性能評価を行う部分
 `test`フォルダの中にあるプログラムがモデルの評価を行う
